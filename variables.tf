@@ -108,7 +108,7 @@ variable "metro" {
 
 variable "node_plan" {
   type        = string
-  default     = "n2.xlarge.x86" #c3.medium.x86 #m3.large.x86
+  default     = "m3.large.x86" #c3.medium.x86 #m3.large.x86
   description = "Equinix Metal device type to deploy nodes"
 }
 
