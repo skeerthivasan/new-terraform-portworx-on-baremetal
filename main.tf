@@ -127,9 +127,10 @@ resource "null_resource" "pds_remove" {
 
   provisioner "local-exec" {
     when    = destroy
+    on_failure = continue
     command = <<-EOT
        echo "Waiting for uninstall to finish"
-       #sleep 420
+       sleep 42
        echo "Removing PDS Entry"
        bash scripts/rm-pds-entry.sh ${self.triggers.token_id} ${self.triggers.tenant_id} ${self.triggers.deploy_id}
       EOT
@@ -138,6 +139,16 @@ resource "null_resource" "pds_remove" {
   }
 }
 
+resource "null_resource" "scaleup" {
+  triggers = {
+    condition = var.scaleup
+  }
+  provisioner "local-exec" {
+    command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.module
+  }
+}
 
 
 output "info_bares_ips" {

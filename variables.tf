@@ -4,6 +4,12 @@ variable "account_id" {
   description = "Account id of PDS"
 }
 
+variable "scaleup" {
+  type        = bool
+  description = "Scaleup the environment"
+  default     = false
+}
+
 variable "tenant_id" {
   type = string
   default = "null"
@@ -115,7 +121,7 @@ variable "node_plan" {
 
 variable "nodes_count" {
   type        = number
-  default     = 4
+  default     = 5
   description = "Number of baremetal nodes"
 }
 
