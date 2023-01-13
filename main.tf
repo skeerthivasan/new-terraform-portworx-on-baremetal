@@ -74,7 +74,7 @@ resource "null_resource" "local_setup" {
   ]
   provisioner "local-exec" {
     command = <<-EOT
-      cp -p templates/find-kvdb-dev.sh templates/add-node.sh templates/remove-node.sh templates/kvdb-dev.yaml .
+      cp -p templates/find-kvdb-dev.sh templates/add-node.sh templates/remove-node.sh templates/kvdb-dev.yaml templates/nvars .
       cat templates/vars.template > vars
       chmod a+x vars
       EOT
@@ -141,7 +141,7 @@ resource "null_resource" "pds_remove" {
 
 resource "null_resource" "scaleup" {
   triggers = {
-    condition = var.scaleup
+    ncount = var.nodes_count
   }
   provisioner "local-exec" {
     command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"

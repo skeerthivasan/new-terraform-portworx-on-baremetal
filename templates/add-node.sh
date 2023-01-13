@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e -u
 set -o pipefail
-. vars
+. nvars
 
 
 ##Help text
@@ -17,20 +17,20 @@ set -o pipefail
   fi
 
 #Checking if inventory file exists.
-  if [ ! -f "kubespray/${CONFIG_FILE}" ]; then
-    printf "\nFile not found: ./kubespray/${CONFIG_FILE} \n\nRequired file not found. Make sure you are running the script for an already set up cluster.\n\n"
+  if [ ! -f "modules/k8s_setup/kubespray/${CONFIG_FILE}" ]; then
+    printf "\nFile not found: modules/k8s_setup/kubespray/${CONFIG_FILE} \n\nRequired file not found. Make sure you are running the script for an already set up cluster.\n\n"
     exit 1
   fi
 
-cd kubespray;
+cd modules/k8s_setup/kubespray;
 
 ##Checking if hosts are accessible.
   HOST_IPS="$@";
   for i in $HOST_IPS; do
-    timeout 5 ssh ${PX_ANSIBLE_USER}@${i} "true" || { printf "\nSSH Connection failed: ${PX_ANSIBLE_USER}@${i}\n\nMake sure the ssh user and the ip is correct and password-less ssh is set up correctly.\n\n"; exit 1; } 
+    timeout 5 ssh -o StrictHostKeyChecking=no ${PX_ANSIBLE_USER}@${i} "true" || { printf "\nSSH Connection failed: ${PX_ANSIBLE_USER}@${i}\n\nMake sure the ssh user and the ip is correct and password-less ssh is set up correctly.\n\n"; exit 1; } 
   done
 
-vRETURN=$(for i in $HOST_IPS ;do ssh ${PX_ANSIBLE_USER}@${i} 'printf $(hostname -f)';printf ",${i} " ; done | xargs)
+vRETURN=$(for i in $HOST_IPS ;do ssh -o StrictHostKeyChecking=no ${PX_ANSIBLE_USER}@${i} 'printf $(hostname -f)';printf ",${i} " ; done | xargs)
 declare -a IPS=(${vRETURN})
 
 ##Starting main process.
@@ -38,17 +38,17 @@ declare -a IPS=(${vRETURN})
   ansible all -i "${CONFIG_FILE}" -m ping -u"${PX_ANSIBLE_USER}" -b
   ansible-playbook -i "${CONFIG_FILE}" "facts.yml" -u"${PX_ANSIBLE_USER}" -b 
 
-  vNODES=$(for i in $HOST_IPS ;do ssh ${PX_ANSIBLE_USER}@${i} 'printf $(hostname -f)';printf "," ; done | xargs|sed 's/,$//g')
+  vNODES=$(for i in $HOST_IPS ;do ssh -o StrictHostKeyChecking=no ${PX_ANSIBLE_USER}@${i} 'printf $(hostname -f)';printf "," ; done | xargs|sed 's/,$//g')
 
   if [[ "${PX_KVDB_DEVICE}" == "auto" ]]; then
-    ansible-playbook -i "${CONFIG_FILE}" ../kvdb-dev.yaml -u"${PX_ANSIBLE_USER}" -b -e "nodes=${vNODES}" -e "opr=create"
+    ansible-playbook -i "${CONFIG_FILE}" ../../../kvdb-dev.yaml -u"${PX_ANSIBLE_USER}" -b -e "nodes=${vNODES}" -e "opr=create"
   fi
 
   if [[ "${PX_METALLB_ENABLED}" == "true" ]]; then
     vMETALLB_VARS="{\"metallb_ip_range\": [\"${PX_METALLB_IP_RANGE}\"]}"
     ansible-playbook -i "${CONFIG_FILE}" "scale.yml" -u"${PX_ANSIBLE_USER}" -b --extra-vars "kubeconfig_localhost=true kubectl_localhost=true kube_proxy_strict_arp=true metallb_enabled=true" --extra-vars "${vMETALLB_VARS}"
   else
-    ansible-playbook -i "${CONFIG_FILE}" "scale.yml" -u"${PX_ANSIBLE_USER}" -b --extra-vars "kubeconfig_localhost=true kubectl_localhost=true"
+    ansible-playbook -i "${CONFIG_FILE}" "scale.yml" -u"${PX_ANSIBLE_USER}" -b --extra-vars "kubeconfig_localhost=true kubectl_localhost=true" -e "nodes=${vNODES}"
   fi 
   cd ..
   

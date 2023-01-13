@@ -35,7 +35,7 @@
         msg: "{{ hostvars[groups['kube_control_plane'][0]]['ansible_facts']['distribution'] }}"
 
     - name: Remove bootstrap for RHEL
-      shell: sed -i '/bootstrap-os/d' ./modules/k8s_setup/kubespray/cluster.yml
+      shell: sed -i '/bootstrap-os/d' ./modules/k8s_setup/kubespray/cluster.yml ./modules/k8s_setup/kubespray/scale.yml
       register: sed_data
       when: "'RedHat' in hostvars[groups['kube_control_plane'][0]]['ansible_facts']['distribution']"
       run_once: true
