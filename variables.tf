@@ -10,6 +10,12 @@ variable "scaleup" {
   default     = false
 }
 
+variable "scale_count" {
+  type        = number
+  description = "Scaleup the environment by number of servers"
+  default     = 1
+}
+
 variable "tenant_id" {
   type = string
   default = "null"
@@ -121,7 +127,7 @@ variable "node_plan" {
 
 variable "nodes_count" {
   type        = number
-  default     = 5
+  default     = 7
   description = "Number of baremetal nodes"
 }
 

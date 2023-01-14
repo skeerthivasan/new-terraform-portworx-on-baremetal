@@ -115,12 +115,13 @@ data "external" "get_cluster_id" {
 }
 
 locals {
+#old_count = var.nodes_count
+#scale_count = "${var.nodes_count} - ${local.old_count}"
 extd = data.external.get_cluster_id.result
 }
 
 resource "null_resource" "pds_remove" {
   triggers = {
-    deploy_id = local.extd.cluster-id
     token_id = var.pds_token
     tenant_id = var.tenant_id
   }
@@ -132,7 +133,7 @@ resource "null_resource" "pds_remove" {
        echo "Waiting for uninstall to finish"
        sleep 42
        echo "Removing PDS Entry"
-       bash scripts/rm-pds-entry.sh ${self.triggers.token_id} ${self.triggers.tenant_id} ${self.triggers.deploy_id}
+       bash scripts/rm-pds-entry.sh ${self.triggers.token_id} ${self.triggers.tenant_id} local.extd.cluster-id
       EOT
       interpreter = ["/bin/bash", "-c"]
       working_dir = path.module
@@ -140,14 +141,26 @@ resource "null_resource" "pds_remove" {
 }
 
 resource "null_resource" "scaleup" {
+  depends_on = [null_resource.local_setup, local_file.cluster-config-vars]
+  count = var.scaleup ? 1 : 0
   triggers = {
     ncount = var.nodes_count
   }
   provisioner "local-exec" {
-    command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
+    when = create
+    command     = "/bin/bash add-node.sh ${join(" ", slice(reverse(equinix_metal_device.baremachines.*.access_public_ipv4), 0, var.scale_count))}"
+    #command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
+
+  provisioner "local-exec" {
+    when = destroy
+    command     = "echo 'Placeholder for remove nodes'"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.module
+  }
+
 }
 
 
