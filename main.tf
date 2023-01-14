@@ -163,6 +163,29 @@ resource "null_resource" "scaleup" {
 
 }
 
+resource "null_resource" "scaledown" {
+  depends_on = [equinix_metal_device.baremachines, null_resource.local_setup, local_file.cluster-config-vars]
+  count = var.scaledown ? 1 : 0
+  triggers = {
+    ncount = var.nodes_count
+  }
+  provisioner "local-exec" {
+    when = create
+    command     = "/bin/bash remove-node.sh ${join(" ", slice(reverse(equinix_metal_device.baremachines.*.access_public_ipv4), 0, var.scale_count))}"
+    #command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.module
+  }
+
+  provisioner "local-exec" {
+    when = destroy
+    command     = "echo 'Placeholder for remove nodes'"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.module
+  }
+
+}
+
 
 output "info_bares_ips" {
   value = equinix_metal_device.baremachines.*.access_public_ipv4

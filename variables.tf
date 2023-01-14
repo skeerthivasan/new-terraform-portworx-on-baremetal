@@ -6,7 +6,13 @@ variable "account_id" {
 
 variable "scaleup" {
   type        = bool
-  description = "Scaleup the environment"
+  description = "Scale up the environment"
+  default     = false
+}
+
+variable "scaledown" {
+  type        = bool
+  description = "Scale down the environment"
   default     = false
 }
 
@@ -127,7 +133,7 @@ variable "node_plan" {
 
 variable "nodes_count" {
   type        = number
-  default     = 7
+  default     = 4
   description = "Number of baremetal nodes"
 }
 

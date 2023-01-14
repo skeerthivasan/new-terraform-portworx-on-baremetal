@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e -u
 set -o pipefail
-. vars
+. nvars
 
 LOG_FILE="$(pwd)/debug.log"
 ##Help text
@@ -19,23 +19,27 @@ LOG_FILE="$(pwd)/debug.log"
     howtouse
   fi
   printf "Successful!\n" >> "${LOG_FILE}"
-  HOST_TO_REMOVE="${1}"
+  HOST_IP="${1}"
 
 ##Checking if inventory file exists.
   printf "Checking if inventory file exists: " >> "${LOG_FILE}"
-  if [ ! -f "kubespray/${CONFIG_FILE}" ]; then
+  if [ ! -f "modules/k8s_setup/kubespray/${CONFIG_FILE}" ]; then
     printf "\nFile not found: ./kubespray/${CONFIG_FILE} \n\nMake sure you are running the script from the folder where you initially ran the terraform commands for setting up the cluster.\n\n"
     exit 1
   fi
   printf "Successful!\n" >> "${LOG_FILE}"
 
-  cd kubespray;
+  HOST_TO_REMOVE=$(ssh -o StrictHostKeyChecking=no ${PX_ANSIBLE_USER}@${HOST_IP} 'printf $(hostname)' | xargs)
+  echo $HOST_TO_REMOVE
+
+  cd modules/k8s_setup/kubespray;
   printf "\nGathering information about the node, it may take some time...\n\n"
   printf "Lookup if node is existing in the inventory: " >> "${LOG_FILE}"
   FIND_HOST="$(ansible -i "${CONFIG_FILE}" --list-hosts ${HOST_TO_REMOVE} 2> /dev/null | tail -1 | xargs )"
+  echo "Find HOST $FIND_HOST"
   if [[ "${FIND_HOST}" != "${HOST_TO_REMOVE}" ]]; then
     printf "\n"
-    printf "Node '${HOST_TO_REMOVE}' does not exist in the inventory 'kubespray/${CONFIG_FILE}'.\n\n" | tee -a "${LOG_FILE}"
+    printf "Node '${HOST_TO_REMOVE}' does not exist in the inventory 'modules/k8s_setup/kubespray/${CONFIG_FILE}'.\n\n" | tee -a "${LOG_FILE}"
     exit 1
   fi
   printf "Successful!\n" >> "${LOG_FILE}"
@@ -45,35 +49,35 @@ LOG_FILE="$(pwd)/debug.log"
       printf "Successful!\n" >> "${LOG_FILE}" || \
       { printf "\n\n"; printf "Node '${HOST_TO_REMOVE}' is not a member of the cluster.\n\n" | tee  -a "${LOG_FILE}"; exit 1; }
 
-  printf "Fetch IP of the node from the inventory: " >> "${LOG_FILE}"
-  HOST_IP="$(ansible -i "${CONFIG_FILE}" -m debug -a "var=hostvars[inventory_hostname].ip" ${HOST_TO_REMOVE} 2> /dev/null | \
-    grep -i 'hostvars\[inventory_hostname\].ip":' | cut -f2 -d":" | xargs)"
-  printf "IP is: $HOST_IP\n" >> "${LOG_FILE}"
+  #printf "Fetch IP of the node from the inventory: " >> "${LOG_FILE}"
+  #HOST_IP="$(ansible -i "${CONFIG_FILE}" -m debug -a "var=hostvars[inventory_hostname].ip" ${HOST_TO_REMOVE} 2> /dev/null | \
+  #  grep -i 'hostvars\[inventory_hostname\].ip":' | cut -f2 -d":" | xargs)"
+  #printf "IP is: $HOST_IP\n" >> "${LOG_FILE}"
 
   printf "Checking if node is accessible and passwordless ssh is working: " >> "${LOG_FILE}"
-  timeout 25 ssh -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "true" || { printf "\nSSH Connection failed: ${PX_ANSIBLE_USER}@${HOST_IP}\n\nMake sure the host is reachable and password-less ssh is set up correctly.\n\n"; exit 1; }
+  timeout 25 ssh  -oStrictHostKeyChecking=no -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "true" || { printf "\nSSH Connection failed: ${PX_ANSIBLE_USER}@${HOST_IP}\n\nMake sure the host is reachable and password-less ssh is set up correctly.\n\n"; exit 1; }
   printf "Successful!\n" >> "${LOG_FILE}"
 
   printf "Checking if ssh user has root permissions: " >> "${LOG_FILE}"
 #  timeout 25 ssh -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "sudo hostname" || { printf "\nSSH Connection failed: ${PX_ANSIBLE_USER}@${HOST_IP}\n\nMake sure the host is reachable and password-less ssh is set up correctly.\n\n"; exit 1; } 
-  timeout 25 ssh -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "sudo hostname" >/dev/null 2>&1 || { printf "\nSSH user '${PX_ANSIBLE_USER}' does have root or sudo permissions, or it is not allowed to run the commands without entering the password.\n\n"; exit 1;}
+  timeout 25 ssh -oStrictHostKeyChecking=no -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "sudo hostname" >/dev/null 2>&1 || { printf "\nSSH user '${PX_ANSIBLE_USER}' does have root or sudo permissions, or it is not allowed to run the commands without entering the password.\n\n"; exit 1;}
   printf "Successful!\n" >> "${LOG_FILE}"
 
   printf "Find a portworx pod: " >> "${LOG_FILE}"
   PX_POD="$(${kbCtl} --kubeconfig="../${vKubeConfig}" get pods --no-headers -l name=portworx -n portworx -o wide | grep -v ${HOST_TO_REMOVE} | xargs | cut -f1 -d' ')"
   printf "${PX_POD}\n" >> "${LOG_FILE}"
 
-  CONFIRMATION=n
-  printf "Asking form the user: Do you want to remove '${HOST_TO_REMOVE}' from the cluster [y/n]: " >> "${LOG_FILE}"
-  while true; do
-    read -p "Do you want to remove '${HOST_TO_REMOVE}' from the cluster [y/n]: " CONFIRMATION
-    if [[ "${CONFIRMATION,,}" == "y" ]]; then
-      printf "${CONFIRMATION}\n" >> "${LOG_FILE}"
-      break
-    elif [[ "${CONFIRMATION,,}" == "n" ]]; then
-      printf "Operation canceled by the user!\n\n" | tee -a "${LOG_FILE}"; exit 0;
-    fi
-  done
+  #CONFIRMATION="y"
+  #printf "Asking form the user: Do you want to remove '${HOST_TO_REMOVE}' from the cluster [y/n]: " >> "${LOG_FILE}"
+  #while true; do
+  #  read -p "Do you want to remove '${HOST_TO_REMOVE}' from the cluster [y/n]: " CONFIRMATION
+  #  if [[ "${CONFIRMATION,,}" == "y" ]]; then
+  #    printf "${CONFIRMATION}\n" >> "${LOG_FILE}"
+  #    break
+  #  elif [[ "${CONFIRMATION,,}" == "n" ]]; then
+  #    printf "Operation canceled by the user!\n\n" | tee -a "${LOG_FILE}"; exit 0;
+  #  fi
+  #done
   
   printf "Checking if node is a member of the Portworx cluster: " >> "${LOG_FILE}"
   PX_NODE="$(${kbCtl} --kubeconfig="../${vKubeConfig}" exec -n portworx $PX_POD -c portworx -- /opt/pwx/bin/pxctl cluster list 2>/dev/null | grep -A100 "Nodes in the cluster:"| grep "${HOST_TO_REMOVE}" |xargs | cut -f2 -d' ' || true)"
@@ -83,7 +87,7 @@ LOG_FILE="$(pwd)/debug.log"
     printf "Preparing node for removal...\n" | tee -a "${LOG_FILE}"
 
     printf "Putting portworx node in maintenance mode: " >> "${LOG_FILE}"
-    timeout 25 ssh -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "
+    timeout 25 ssh -oStrictHostKeyChecking=no -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "
         pxctl service maintenance --enter -y
         " >>"${LOG_FILE}" 2>&1 || true
     sleep 10
@@ -102,7 +106,7 @@ LOG_FILE="$(pwd)/debug.log"
     sleep 10
 
     printf "Cleaning portworx node before removal: " >> "${LOG_FILE}"
-    timeout 100 ssh -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "
+    timeout 100 ssh -oStrictHostKeyChecking=no -oBatchMode=yes ${PX_ANSIBLE_USER}@${HOST_IP} "
         sudo systemctl stop portworx
         sudo systemctl disable portworx
         sudo rm -f /etc/systemd/system/portworx*
@@ -122,7 +126,7 @@ LOG_FILE="$(pwd)/debug.log"
   #Gathering facts
     ansible -i "${CONFIG_FILE}" -m  setup all > /dev/null
   #Removing
-    ansible-playbook -i "${CONFIG_FILE}" ../kvdb-dev.yaml -u"${PX_ANSIBLE_USER}" -b -e "nodes=${HOST_TO_REMOVE}" -e "opr=delete"
+    ansible-playbook -i "${CONFIG_FILE}" ../../../kvdb-dev.yaml -u"${PX_ANSIBLE_USER}" -b -e "nodes=${HOST_TO_REMOVE}" -e "opr=delete"
     ansible-playbook -i "${CONFIG_FILE}" remove-node.yml  -u"${PX_ANSIBLE_USER}" -b -e "node=${HOST_TO_REMOVE}" -e "skip_confirmation=yes"
 
 cd ..
