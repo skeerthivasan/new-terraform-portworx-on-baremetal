@@ -74,6 +74,7 @@ resource "null_resource" "local_setup" {
     command = <<-EOT
       cp -p templates/find-kvdb-dev.sh templates/add-node.sh templates/remove-node.sh templates/kvdb-dev.yaml templates/nvars .
       cat templates/vars.template > vars
+      cp -p cluster-config-vars ncluster-config-vars
       chmod a+x vars
       EOT
       interpreter = ["/bin/bash", "-c"]
@@ -164,32 +165,39 @@ resource "null_resource" "scaleup" {
 
 resource "null_resource" "scaledown" {
   depends_on = [
-    equinix_metal_ssh_key.ssh_pub_key
+    equinix_metal_device.baremachines, local_file.cluster-config-vars
+    #equinix_metal_ssh_key.ssh_pub_key
   ]
-  count = !var.scaledown || var.scaleup ? 1 : 0
+  count = var.scaledown ? 1 : 0
+  #count = !var.scaledown || var.scaleup ? 1 : 0
+  #count = !var.scaledown || var.scaleup ? 1 : 0
   #count = var.nodes_count
   triggers =  {
+    #condition = var.nodes_count
     ncount = var.nodes_count
     bm_ips = join(",", reverse(equinix_metal_device.baremachines.*.access_public_ipv4))
     scount = var.scale_count
+    sdown = var.scaledown
   }
   provisioner "local-exec" {
-    when = destroy
-    command     = "/bin/bash remove-node.sh ${join(" ", slice(split(",", self.triggers.bm_ips), 0, self.triggers.scount))}"
+    when = create
+    #command = "/bin/bash remove-node.sh ${join(" ", slice(split(",", self.triggers.bm_ips), 0, self.triggers.scount))}"
+    #command     = "if [ ${self.triggers.sdown} != true ] ; then /bin/bash remove-node.sh ${join(" ", slice(split(",", self.triggers.bm_ips), 0, self.triggers.scount))}; else echo 'Task done'; fi"
+    command = "if ${var.scaledown} == true ; then /bin/bash remove-node.sh ${join(" ", slice(reverse(equinix_metal_device.baremachines.*.access_public_ipv4), 0, var.scale_count))} ; else echo 'Task done'; fi"
     #command     = "/bin/bash remove-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
 
   provisioner "local-exec" {
-    when = create
+    when = destroy
     command     = "echo 'Task to maintain states'"
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
-  lifecycle {
-    create_before_destroy = true
-  }
+  #lifecycle {
+  ##  create_before_destroy = true
+  #}
 }
 
 
