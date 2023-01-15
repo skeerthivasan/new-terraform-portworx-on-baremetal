@@ -39,8 +39,6 @@ resource "equinix_metal_device" "baremachines" {
   operating_system = var.operating_system
   billing_cycle    = var.billing_cycle
   project_id       = var.metal_project_id
-
-
 }
 
 locals {
@@ -145,6 +143,8 @@ resource "null_resource" "scaleup" {
   count = var.scaleup ? 1 : 0
   triggers = {
     ncount = var.nodes_count
+    bm_ips = join(",", reverse(equinix_metal_device.baremachines.*.access_public_ipv4))
+    scount = var.scale_count
   }
   provisioner "local-exec" {
     when = create
@@ -156,34 +156,40 @@ resource "null_resource" "scaleup" {
 
   provisioner "local-exec" {
     when = destroy
-    command     = "echo 'Placeholder for remove nodes'"
+    command     = "echo 'Task to maintain states'"
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
-
 }
 
 resource "null_resource" "scaledown" {
-  depends_on = [equinix_metal_device.baremachines, null_resource.local_setup, local_file.cluster-config-vars]
-  count = var.scaledown ? 1 : 0
-  triggers = {
+  depends_on = [
+    equinix_metal_ssh_key.ssh_pub_key
+  ]
+  count = !var.scaledown || var.scaleup ? 1 : 0
+  #count = var.nodes_count
+  triggers =  {
     ncount = var.nodes_count
+    bm_ips = join(",", reverse(equinix_metal_device.baremachines.*.access_public_ipv4))
+    scount = var.scale_count
   }
-  provisioner "local-exec" {
-    when = create
-    command     = "/bin/bash remove-node.sh ${join(" ", slice(reverse(equinix_metal_device.baremachines.*.access_public_ipv4), 0, var.scale_count))}"
-    #command     = "/bin/bash add-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
-    interpreter = ["/bin/bash", "-c"]
-    working_dir = path.module
-  }
-
   provisioner "local-exec" {
     when = destroy
-    command     = "echo 'Placeholder for remove nodes'"
+    command     = "/bin/bash remove-node.sh ${join(" ", slice(split(",", self.triggers.bm_ips), 0, self.triggers.scount))}"
+    #command     = "/bin/bash remove-node.sh ${element(equinix_metal_device.baremachines.*.access_public_ipv4, length(equinix_metal_device.baremachines.*.access_public_ipv4)-1)}"
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
 
+  provisioner "local-exec" {
+    when = create
+    command     = "echo 'Task to maintain states'"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.module
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 

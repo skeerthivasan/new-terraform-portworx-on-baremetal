@@ -133,7 +133,7 @@ variable "node_plan" {
 
 variable "nodes_count" {
   type        = number
-  default     = 4
+  default     = 5
   description = "Number of baremetal nodes"
 }
 
