@@ -39,6 +39,9 @@ resource "equinix_metal_device" "baremachines" {
   operating_system = var.operating_system
   billing_cycle    = var.billing_cycle
   project_id       = var.metal_project_id
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 locals {
@@ -168,16 +171,16 @@ resource "null_resource" "scaledown" {
     equinix_metal_device.baremachines, local_file.cluster-config-vars
     #equinix_metal_ssh_key.ssh_pub_key
   ]
-  count = var.scaledown ? 1 : 0
+  #count = var.scaledown ? 0 : 1
   #count = !var.scaledown || var.scaleup ? 1 : 0
   #count = !var.scaledown || var.scaleup ? 1 : 0
   #count = var.nodes_count
   triggers =  {
-    #condition = var.nodes_count
+  #  #condition = var.nodes_count
     ncount = var.nodes_count
-    bm_ips = join(",", reverse(equinix_metal_device.baremachines.*.access_public_ipv4))
-    scount = var.scale_count
-    sdown = var.scaledown
+  #  bm_ips = join(",", reverse(equinix_metal_device.baremachines.*.access_public_ipv4))
+  #  scount = var.scale_count
+  #  sdown = var.scaledown
   }
   provisioner "local-exec" {
     when = create
@@ -195,9 +198,9 @@ resource "null_resource" "scaledown" {
     interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
   }
-  #lifecycle {
-  ##  create_before_destroy = true
-  #}
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 
